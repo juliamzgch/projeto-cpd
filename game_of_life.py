@@ -1,4 +1,7 @@
 import multiprocessing
+from itertools import batched
+from math import remainder
+
 
 def _get_next_cell_state(grid: list[list[int]], r: int, c: int, rows: int, cols: int) -> int:
     """
@@ -112,5 +115,65 @@ def game_of_life_sequencial (grid: list[list[int]], generations: int) -> list[li
         current_grid = next_grid
 
     return current_grid
+
+
+def game_of_life_parallel(grid: list[list[int]], generations: int, workers: int) -> list[list[int]]:
+    """
+    Simula a evolução da grelha em paralelo dividindo-a em regiões de linhas,
+    mas aplicando otimizações de vizinhança para evitar processamento redundante.
+
+    :param grid: Matriz bidimensional com o estado inicial
+    :param generations: Número de gerações a simular.
+    :param workers: Número de processos paralelos a usar.
+    :return: A matriz final após todas as gerações.
+    """
+
+    if not grid or not grid[0] or workers <=0:
+        return grid
+
+    rows = len(grid)
+    cols = len(grid[0])
+
+    #Ajustar os workers se forem mais doq as linhas disponiveis
+    workers = min(workers, rows)
+
+    #Planificar a divisão de tarefas
+    lines_per_worker = rows // workers
+    remainder= rows%workers
+
+    #criar uma estrutura unidimensional em memória partilhada para a matriz
+    flat_grid = [cell for row in grid for cell in row]
+    shared_grid_flat = multiprocessing.Array('i', flat_grid)
+
+    #Barreira reutilizavel para sincronizar as duas fazes de cada geração
+    barrier = multiprocessing.Barrier(workers)
+
+    process = []
+    current_start_row = 0
+
+    #Criar e iniciar os processos
+    for i in range(workers):
+        #Distribuir o resto das linhas equititivamente pelos primeiros workers
+        extra_row = 1 if i<remainder else 0
+        current_end_row = current_start_row + lines_per_worker + extra_row
+
+        p = multiprocessing.Process(
+            target=_worker_lifecycle,
+            args = (i, shared_grid_flat, rows, cols, current_start_row, current_end_row, generations, barrier)
+        )
+        process.append(p)
+        p.start()
+
+        current_start_row = current_end_row
+
+    #Aguardar que todos os processos concluam
+    for p in process:
+        p.join()
+
+    #Reconstruir a matriz final a partir da memoria partilhada para desenvolver o resultado
+    final_flat = list(shared_grid_flat)
+    final_grid = [final_flat[r * cols:(r+1) * cols] for r in range(rows)]
+
+    return final_grid
 
 
