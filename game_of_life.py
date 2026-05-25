@@ -26,3 +26,29 @@ def _get_next_cell_state(grid: list[list[int]], r: int, c: int, rows: int, cols:
         if live_neighbors == 3:
             return 1
         return 0
+
+
+def game_of_life_sequencial (grid: list[list[int]], generations: int) -> list[list[int]]:
+    """
+    Simula a evolução da grelha durante um número fixo de gerações de forma sequencial.
+
+    :param grid: Matriz bidimensional (lista de listas) com o estado inicial.
+    :param generations: Número de gerações a simular.
+    :return: A matriz final após todas as gerações.
+    """
+
+    if not grid or not grid[0]:
+        return grid
+
+    rows = len(grid)
+    cols = len(grid[0])
+    current_grid = [row[:] for row in grid] #Cópia profunda inicial
+
+    for _ in range(generations):
+        next_grid = [[0] * cols for _ in range(rows)]
+        for r in range(rows):
+            for c in range(cols):
+                next_grid[r][c] = _get_next_cell_state(current_grid, r, c, rows, cols)
+        current_grid = next_grid
+
+    return current_grid
