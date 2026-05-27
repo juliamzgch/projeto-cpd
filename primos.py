@@ -296,7 +296,7 @@ def _worker_chunks_optimized_backwards(timeout, start_time, chunk_queue, shared_
 def find_max_prime_parallel_v5(timeout, workers):
     start_time = time.time()
     chunk_queue = multiprocessing.Queue()
-    chunk_size = workers * 10_000_000
+    chunk_size = workers * 50_000_000
 
     current_base = 3
     for _ in range(5000):
@@ -368,17 +368,13 @@ def _print_table_row(version_name, prime, execution_time):
     formatted_time = f"{execution_time:.4f}s"
     print(f"{version_name:<30} | {formatted_prime:<22} | {digits:<12} | {formatted_time:<15}")
 
-
-if __name__ == "__main__":
-    timeout_input = int(input("Define timeout time (in seconds): "))
-    workers_input = int(input("Define num of workers: "))
-
+def benchmarking():
     print(f"\n[Benchmarking] Running tests with Timeout: {timeout_input}s and Workers: {workers_input}...")
 
     # Store results dynamically to print the structured table at the very end
     results = []
 
-    # 1. Run Sequential Baseline
+    # 1. Run Sequential
     start = time.time()
     sol_seq = find_max_prime_sequential(timeout_input)
     results.append(("Sequential", sol_seq, time.time() - start))
@@ -413,6 +409,12 @@ if __name__ == "__main__":
     for row in results:
         _print_table_row(row[0], row[1], row[2])
     print("=" * 85 + "\n")
+
+if __name__ == "__main__":
+    timeout_input = int(input("Define timeout time (in seconds): "))
+    workers_input = int(input("Define num of workers: "))
+
+    benchmarking()
 
     #
     # if __name__ == "__main__":
