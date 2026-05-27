@@ -9,37 +9,40 @@ class Cliente:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
         self.request_id = 0
+        self.sock_file = self.sock.makefile("r")
 
     def invoke(self, function, arguments):
         if not self.sock:
-            raise ConnectionError("Socket não está conectado.")
+            raise ConnectionError("Socket not connected.")
 
         self.request_id += 1
 
         request = {
-            "jsonrpc": 2.0,
+            "jsonrpc": "2.0",
             "method": function,
             "params": arguments,
             "id": self.request_id
         }
 
-        self.sock.sendall(json.dumps(request).encode())
+        message = json.dumps(request) + "\n"
 
-        data = self.sock.recv(1024)
-        response = json.loads(data.decode())
+        self.sock.sendall(message.encode())
+
+        response_line = self.sock_file.readline()
+        response = json.loads(response_line)
 
         if isinstance(response, dict):
             if "result" in response:
                 return response["result"]
             elif "error" in response:
-                raise AttributeError(f"Erro remoto: {response['error']}")
+                raise AttributeError(f"Remote error: {response['error']}")
 
         raise AttributeError("Resposta inválida do servidor.")
 
     def menu(self):
         while True:
             try:
-                metodos = self.invoke("list_methods", {})
+                methods = self.invoke("list_methods", {})
 
             except Exception as e:
                 print("Erro ao obter métodos: ", e)
@@ -47,58 +50,55 @@ class Cliente:
 
             print("\nMenu")
 
-            for i, m in enumerate(metodos):
+            for i, m in enumerate(methods):
                 nome = m["name"]
                 args = ", ".join(m["args"])
                 desc = m["description"]
                 print(f"{i + 1}. {nome}: {args} - {desc}")
             print("0. Sair")
 
-            escolha = input("Escolha: ").strip().lower()
+            choice = input("Escolha: ").strip().lower()
 
-            if escolha == "0":
+            if choice == "0":
                 print("A terminar cliente.")
                 break
-            if not escolha.isdigit() or int(escolha) < 0 or int(escolha) > len(metodos):
+            if not choice.isdigit() or int(choice) < 0 or int(choice) > len(methods):
                 print("Opção inválida.")
                 continue
 
-            metodo = metodos[int(escolha) - 1]
-            nome_funcao = metodo["name"]
+            method = methods[int(choice) - 1]
+            func_name = method["name"]
 
-            print(f"\nInvocar: {nome_funcao}")
+            print(f"\nInvoke: {func_name}")
             params_input = input("Introduza argumentos: (ex: 1,2 ou x=1,y=2): ").strip()
 
             args = []
             kwargs = {}
             if params_input:
-                partes = params_input.split(",")
-                for parte in partes:
-                    parte = parte.split("=")
-                    if "=" in parte:
-                        k, v = parte.split("=", 1)
+                parts = params_input.split(",")
+                for part in parts:
+                    if "=" in part:
+                        k, v = part.split("=", 1)
                         try:
                             kwargs[k.strip()] = ast.literal_eval(v.strip())
                         except:
                             kwargs[k.strip()] = v.strip()
                     else:
                         try:
-                            args.append(ast.literal_eval(parte))
+                            args.append(ast.literal_eval(part.strip()))
                         except:
-                            args.append(parte)
+                            args.append(part.strip())
 
 
-                if kwargs:
-                    params = kwargs.copy()
-                    if args:
-                        params["__args__"] = args
-                    else:
-                        params = args
-                    try:
-                        resultado = self.invoke(nome_funcao, params)
-                        print("Resultado: ", resultado)
-                    except Exception as e:
-                        print("Erro: ", e)
+                params = kwargs.copy()
+                if args:
+                    params["__args__"] = args
+
+                try:
+                    resultado = self.invoke(func_name, params)
+                    print("Resultado: ", resultado)
+                except Exception as e:
+                    print("Erro: ", e)
 
     def __getattr__(self, name):
         def method(*args, **kwargs):

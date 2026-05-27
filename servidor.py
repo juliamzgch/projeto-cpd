@@ -4,11 +4,12 @@ import json
 import inspect
 import threading
 import time
+
 import primos
 import game_of_life
 
 class Servidor:
-    def __init__(self, host='localhost', port=80):
+    def __init__(self, host='localhost', port=8000):
         self.host = host
         self.port = port
         self.funcs = {}
@@ -17,7 +18,7 @@ class Servidor:
 
         self._register_all_functions()
 
-        self.clientes_ativos = 0
+        self.active_clients = 0
         self.lock = threading.Lock()
         self.shutdown_requested = False
 
@@ -34,7 +35,7 @@ class Servidor:
         print(f"[SERVIDOR] {name} registrado com sucesso!]")
 
     def list_methods_structured(self):
-        funcoes = []
+        functions = []
         for name, func in self.funcs.items():
             sig = inspect.signature(func)
             parametros = []
@@ -43,12 +44,12 @@ class Servidor:
                     parametros.append(f"{p.name}:{p.default!r}")
                 else:
                     parametros.append(p.name)
-            funcoes.append({
+            functions.append({
                 "name": name,
                 "args": parametros,
                 "description": inspect.getdoc(func) or "",
             })
-            return funcoes
+        return functions
 
     def handle_request(self, request_json):
         try:
@@ -60,28 +61,32 @@ class Servidor:
 
             if method == "list_methods":
                 return json.dumps({
-                    "jsonrpc": 2.0,
+                    "jsonrpc": "2.0",
                     "result": self.list_methods_structured(),
                     "id": req_id
                 })
             if method == "shutdown":
-                print("[SERVIDOR] Encerramento solicitado.")
+                print("[SERVIDOR] Shutdown requested.")
                 self.shutdown_requested = True
                 return json.dumps({
                     "jsonrpc": 2.0,
-                    "result": "Encerrando...",
+                    "result": "Shutting down...",
                     "id": req_id
                 })
             func = self.funcs.get(method)
             if not func:
                 return json.dumps({
                     "jsonrpc": 2.0,
-                    "error": "Método não encontrado",
+                    "error": "Method Not Found",
                     "id": req_id
                 })
 
             if isinstance(args, dict) and '__args__' in args:
-                real_args = args.pop('__args__')
+                real_args = args.get('__args__', [])
+                real_kwargs = {k: v
+                    for k, v in args.items()
+                    if k != '__args__'
+                }
                 result = func(*real_args, **args)
             elif isinstance(args, dict):
                 result = func(**args)
@@ -91,7 +96,7 @@ class Servidor:
                 result = func(args)
 
             return json.dumps({
-                "jsonrpc": 2.0,
+                "jsonrpc": "2.0",
                 "result": result,
                 "id": req_id
             })
@@ -105,30 +110,32 @@ class Servidor:
 
     def client_thread(self, conn, addr):
         with self.lock:
-            self.clientes_ativos += 1
+            self.active_clients += 1
 
-        print(f"[SERVIDOR] Ligação de {addr}")
+        print(f"[SERVER] Connection of {addr}")
 
         with conn:
+            conn_file = conn.makefile("r")
             while True:
-                data = conn.recv(1024)
-                if not data:
+                request = conn_file.readline()
+                if not request:
                     break
-                request = data.decode()
-                print(f"[SERVIDOR] {request}")
+                print(f"[SERVER] {request}")
                 response = self.handle_request(request)
-                print(f"[SERVIDOR] {response}")
-                conn.sendall(response.encode())
+                print(f"[SERVER] {response}")
+                message = response + "\n"
+                conn.sendall(message.encode())
 
         with self.lock:
-            self.clientes_ativos -= 1
+            self.active_clients -= 1
 
-        print(f"[SEERVIDOR] Cliente {addr} desligou.")
+        print(f"[SERVER] Client {addr} is off.")
 
     def start(self):
-        print(f"[SERVIDOR] Inicializando servidor...")
-        print(f"[SERVIDOR] A escutar em {self.host}:{self.port}...")
+        print(f"[SERVER] Initializing server...")
+        print(f"[SERVER] Listening on {self.host}:{self.port}...")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
             s.bind((self.host, self.port))
             s.listen()
             s.settimeout(1)
@@ -140,14 +147,15 @@ class Servidor:
                 except socket.timeout:
                     pass
 
-        print(f"[SERVIDOR] Aguardando término dos clientes...")
+        print(f"[SERVER] Waiting for clients to finish...")
 
         while True:
             with self.lock:
-                if self.clientes_ativos == 0:
+                if self.active_clients == 0:
                     break
             time.sleep(0.5)
-        print(f"[SERVIDOR] Todos os clientes desligaram. A encerrar.")
+        print(f"[SERVER] All clients finished successfully.")
+        print(f"[SERVER] Shutting down server...")
 
 if __name__ == "__main__":
     server = Servidor()
