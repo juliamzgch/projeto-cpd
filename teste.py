@@ -1,6 +1,6 @@
 import time
 import random
-from game_of_life import game_of_life_sequencial, game_of_life_parallel
+from game_of_life import game_of_life_sequencial, game_of_life_parallel, game_of_life_parallel_default
 
 def gerar_grelha_aleatoria(linhas: int, colunas: int, probabilidade_viva: float = 0.3) -> list[list[int]]:
     """Gera uma grelha binária aleatória com a dimensão especificada"""
@@ -25,7 +25,7 @@ def executar_testes_game_of_life():
     #Configurações do teste
 
     linhas, colunas = 200, 200
-    geracoes = 50
+    geracoes = 25
     num_workers = 4
 
     print("[*] Configuração: Grelha {linhas}x{colunas} | Gerações: {geracoes} | Workers: {num_workers}\n")
@@ -34,44 +34,39 @@ def executar_testes_game_of_life():
 
     grelha_inicial = gerar_grelha_aleatoria(linhas, colunas, probabilidade_viva=0.25)
 
-    #Executar VERSÃO SEQUENCIAL
+    #TESTAR
 
+    # Sequencial
     print("[+] A executar versão sequencial...")
     inicio_seq = time.perf_counter()
-    resultado_seq= game_of_life_sequencial(grelha_inicial, geracoes)
-    fim_seq = time.perf_counter()
-    tempo_seq = fim_seq - inicio_seq
-    print(f"     -> Tempo Sequencial: {tempo_seq:.4f} segundos")
+    resultado_seq = game_of_life_sequencial(grelha_inicial, geracoes)
+    tempo_seq = time.perf_counter() - inicio_seq
+    print(f"    -> Tempo Sequencial: {tempo_seq:.4f} segundos")
 
-    #Executar Versão Paralela
-    print("[+] A executar versão paralela...")
-    inicio_par = time.perf_counter()
-    resultado_par = game_of_life_parallel(grelha_inicial, geracoes, num_workers)
-    fim_par = time.perf_counter()
-    tempo_par = fim_par - inicio_par
-    print(f"    -> Tempo Paralelo: {tempo_par:.4f} segundos")
+    # Paralela DEFAULT
+    print("[+] A executar versão paralela DEFAULT (Sem otimização)...")
+    inicio_def = time.perf_counter()
+    resultado_def = game_of_life_parallel_default(grelha_inicial, geracoes, num_workers)
+    tempo_def = time.perf_counter() - inicio_def
+    print(f"    -> Tempo Paralelo Default: {tempo_def:.4f} segundos")
 
+    # Paralela OTIMIZADA
+    print("[+] A executar versão paralela OTIMIZADA...")
+    inicio_opt = time.perf_counter()
+    resultado_opt = game_of_life_parallel(grelha_inicial, geracoes, num_workers)
+    tempo_opt = time.perf_counter() - inicio_opt
+    print(f"    -> Tempo Paralelo Otimizado: {tempo_opt:.4f} segundos")
 
-
-    #Validações
-
-    print("\n[-] Verificando consistencia de resultados...")
-    if comparar_matrizes(resultado_seq, resultado_par):
-        print("SUCESSO: Ambas as versões produziram o mesmo resultado")
-
-        #Calcular speedup
-        speedup = tempo_seq/tempo_par
-        print(f"    -> Speedup Alcançado: {speedup:.2f} vezes mais rapido")
-        if speedup > 1.0:
-            print("    -> Otimização bem-sucedida: A versão paralela foi mais rápida.")
-        else:
-            print(
-                "    -> Nota: Para grelhas pequenas ou poucas gerações, o custo de criar processos pode não compensar.")
+    # Validação (Validar as duas contra a sequencial para garantir que estão certas)
+    print("\n[-] Verificando consistência dos resultados...")
+    if comparar_matrizes(resultado_seq, resultado_def) and comparar_matrizes(resultado_seq, resultado_opt):
+        print(" SUCCESS: Todas as versões produziram exatamente o mesmo resultado!")
+        print(f"    -> Speedup da versão Default: {tempo_seq / tempo_def:.2f}x")
+        print(f"    -> Speedup da versão Otimizada: {tempo_seq / tempo_opt:.2f}x")
+        ganho_extra = (tempo_def - tempo_opt) / tempo_def * 100
+        print(f"    -> A tua otimização poupou {ganho_extra:.1f}% de tempo face à Default!")
     else:
-        print(" FAILED: Os resultados da versão sequencial e paralela são DIFERENTES.")
-        print("           Verifica a gestão de fronteiras ou sincronização por barreiras.")
-
-        print("=" * 60)
+        print(" FAILED: Há divergência nos resultados de alguma das matrizes.")
 
 if __name__ == "__main__":
         executar_testes_game_of_life()

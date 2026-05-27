@@ -63,6 +63,43 @@ def _worker_lifecycle(worker_id: int, grid_a, grid_b, rows: int, cols: int,
         # antes que qualquer um possa saltar para a geração 'gen+1' e inverter os buffers
         barrier.wait()
 
+def _worker_lifecycle_default(worker_id: int, grid_a, grid_b, rows: int, cols: int,
+                              start_row: int, end_row: int, generations: int, barrier: multiprocessing.Barrier):
+    """
+    Ciclo de vida de um worker DEFAULT.
+    NÃO tem otimização. Processa cegamente todas as células da sua região.
+    """
+    for gen in range(generations):
+        # Dupla paginação para consistência de dados
+        if gen % 2 == 0:
+            read_buffer = grid_a
+            write_buffer = grid_b
+        else:
+            read_buffer = grid_b
+            write_buffer = grid_a
+
+        # Reconstruir a matriz local apenas para leitura estável
+        local_grid = []
+        for r in range(rows):
+            start_idx = r * cols
+            local_grid.append(list(read_buffer[start_idx : start_idx + cols]))
+
+        # EXECUÇÃO DEFAULT: Ciclo cego por cada linha e cada coluna da região
+        next_local_rows = {}
+        for r in range(start_row, end_row):
+            next_local_rows[r] = [0] * cols
+            for c in range(cols):
+                # Calcula os vizinhos para TODAS as células, sem exceção
+                next_local_rows[r][c] = _get_next_cell_state(local_grid, r, c, rows, cols)
+
+        # Escrever os resultados no buffer de escrita
+        for r in range(start_row, end_row):
+            start_idx = r * cols
+            write_buffer[start_idx : start_idx + cols] = next_local_rows[r]
+
+        # Sincronização global de fim de geração
+        barrier.wait()
+
 
 def game_of_life_sequencial(grid: list[list[int]], generations: int) -> list[list[int]]:
     """Simula a evolução da grelha de forma sequencial."""
@@ -79,6 +116,48 @@ def game_of_life_sequencial(grid: list[list[int]], generations: int) -> list[lis
         current_grid = next_grid
     return current_grid
 
+
+def game_of_life_parallel_default(grid: list[list[int]], generations: int, workers: int) -> list[list[int]]:
+    """
+    Simula a evolução da grelha em paralelo de forma TRADICIONAL/DEFAULT.
+    Útil para comparar o impacto do overhead de cálculo com a versão otimizada.
+    """
+    if not grid or not grid[0] or workers <= 0:
+        return grid
+
+    rows, cols = len(grid), len(grid[0])
+    workers = min(workers, rows)
+
+    lines_per_worker = rows // workers
+    remainder = rows % workers
+
+    flat_grid = [cell for row in grid for cell in row]
+    grid_a = multiprocessing.Array('i', flat_grid)
+    grid_b = multiprocessing.Array('i', [0] * (rows * cols))
+
+    barrier = multiprocessing.Barrier(workers)
+    processes = []
+    current_start_row = 0
+
+    for i in range(workers):
+        extra_row = 1 if i < remainder else 0
+        current_end_row = current_start_row + lines_per_worker + extra_row
+
+        p = multiprocessing.Process(
+            target=_worker_lifecycle_default,  # Chama o worker sem otimização
+            args=(i, grid_a, grid_b, rows, cols, current_start_row, current_end_row, generations, barrier)
+        )
+        processes.append(p)
+        p.start()
+        current_start_row = current_end_row
+
+    for p in processes:
+        p.join()
+
+    final_buffer = grid_b if generations % 2 != 0 else grid_a
+    final_flat = list(final_buffer)
+
+    return [final_flat[r * cols: (r + 1) * cols] for r in range(rows)]
 
 def game_of_life_parallel(grid: list[list[int]], generations: int, workers: int) -> list[list[int]]:
     """Simula a evolução da grelha em paralelo com consistência garantida."""
@@ -115,7 +194,7 @@ def game_of_life_parallel(grid: list[list[int]], generations: int, workers: int)
     for p in processes:
         p.join()
 
-    # O resultado final estará no buffer 
+    # O resultado final estará no buffer
     final_buffer = grid_b if generations % 2 != 0 else grid_a
     final_flat = list(final_buffer)
 
