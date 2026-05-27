@@ -83,11 +83,12 @@ class Servidor:
 
             if isinstance(args, dict) and '__args__' in args:
                 real_args = args.get('__args__', [])
-                real_kwargs = {k: v
+                real_kwargs = {
+                    k: v
                     for k, v in args.items()
                     if k != '__args__'
                 }
-                result = func(*real_args, **args)
+                result = func(*real_args, **real_kwargs)
             elif isinstance(args, dict):
                 result = func(**args)
             elif isinstance(args, list):
