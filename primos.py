@@ -368,8 +368,8 @@ def _print_table_row(version_name, prime, execution_time):
     formatted_time = f"{execution_time:.4f}s"
     print(f"{version_name:<30} | {formatted_prime:<22} | {digits:<12} | {formatted_time:<15}")
 
-def benchmarking():
-    print(f"\n[Benchmarking] Running tests with Timeout: {timeout_input}s and Workers: {workers_input}...")
+def benchmarking(t, p):
+    print(f"\n[Benchmarking] Running tests with Timeout: {t}s and Processes: {p}...")
 
     # Store results dynamically to print the structured table at the very end
     results = []
@@ -412,9 +412,9 @@ def benchmarking():
 
 if __name__ == "__main__":
     timeout_input = int(input("Define timeout time (in seconds): "))
-    workers_input = int(input("Define num of workers: "))
+    workers_input = int(input("Define num of processes: "))
 
-    benchmarking()
+    benchmarking(timeout_input, workers_input)
 
     #
     # if __name__ == "__main__":
