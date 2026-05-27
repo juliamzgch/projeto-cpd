@@ -49,7 +49,7 @@ def _worker_lifecycle( worker_id: int, shared_grid_flat, rows:int, cols:int, sta
         local_grid = []
         for r in range(rows):
             start_idx = r*cols
-            local_grid.append(list(shared_grid_flat[start_idx + cols]))
+            local_grid.append(list(shared_grid_flat[start_idx: start_idx + cols]))
 
         # 2.Otimização Inteligente
         # Em vez de iterar cegamente por todas as células da região, vai descobrir quais as linhas da região têm células vivas por perto
