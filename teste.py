@@ -61,7 +61,7 @@ def executar_testes_game_of_life():
 
         #Calcular speedup
         speedup = tempo_seq/tempo_par
-        print(f"    -> Speedup Alcançado: {speedup: ,2f} vezes mais rapido")
+        print(f"    -> Speedup Alcançado: {speedup:.2f} vezes mais rapido")
         if speedup > 1.0:
             print("    -> Otimização bem-sucedida: A versão paralela foi mais rápida.")
         else:
@@ -74,6 +74,4 @@ def executar_testes_game_of_life():
         print("=" * 60)
 
 if __name__ == "__main__":
-        # Garante que o random gera sempre o mesmo padrão para testes repetíveis se quiseres fixar a seed
-        # random.seed(42)
         executar_testes_game_of_life()
